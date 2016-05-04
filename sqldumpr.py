@@ -8,6 +8,7 @@ TYPE_MAP = {
     'string': 'TEXT',
     'number': 'NUMERIC',
     'geometry': 'GEOMETRY',
+    'JSON': 'JSON',
 }
 
 class Dumpr(object):
@@ -31,7 +32,7 @@ class Dumpr(object):
         params['q'] = q
         return requests.get(self._url, params=params)
 
-    def dump(self, query, tablename, path):
+    def dump(self, query, tablename, writable):
         '''
         '''
         query_limit_zero = query + ' LIMIT 0'
@@ -45,16 +46,20 @@ class Dumpr(object):
             colname=c,
             type=coltypes[c]
         ) for c in colnames])
-        create_table = '''CREATE TABLE {tablename} (
+        create_table = '''DROP TABLE IF EXISTS {tablename};
+
+        CREATE TABLE {tablename} (
             {columns}
         );\n\n'''.format(
             tablename=tablename, columns=columns)
         resp = self.query(query, format='csv')
-        with open(path, 'w') as outfile:
-            outfile.write(create_table)
-            outfile.write('COPY {tablename} FROM stdin WITH CSV HEADER;\n'.format(
-                tablename=tablename
-            ))
-            for line in resp.iter_lines():
-                outfile.write(line + '\n')
-            outfile.write('\\.\n')
+
+        writable.write(create_table)
+        writable.write('COPY {tablename} FROM stdin WITH CSV HEADER;\n'.format(
+            tablename=tablename
+        ))
+        for line in resp.iter_lines():
+            if not line:
+                continue
+            writable.write(line + '\n')
+        writable.write('\\.\n')
