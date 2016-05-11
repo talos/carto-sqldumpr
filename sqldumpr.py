@@ -32,7 +32,7 @@ class Dumpr(object):
         params['q'] = q
         return requests.get(self._url, params=params)
 
-    def dump(self, query, tablename, writable):
+    def dump(self, query, tablename, writable, schema='public'):
         '''
         '''
         query_limit_zero = query + ' LIMIT 0'
@@ -46,16 +46,16 @@ class Dumpr(object):
             colname=c,
             type=coltypes[c]
         ) for c in colnames])
-        create_table = '''DROP TABLE IF EXISTS {tablename};
+        create_table = '''DROP TABLE IF EXISTS "{schema}"."{tablename}";
 
-        CREATE TABLE {tablename} (
+        CREATE TABLE "{tablename}" (
             {columns}
         );\n\n'''.format(
-            tablename=tablename, columns=columns)
+            tablename=tablename, columns=columns, schema=schema)
         resp = self.query(query, format='csv')
 
         writable.write(create_table)
-        writable.write('COPY {tablename} FROM stdin WITH CSV HEADER;\n'.format(
+        writable.write('COPY "{tablename}" FROM stdin WITH CSV HEADER;\n'.format(
             tablename=tablename
         ))
         for line in resp.iter_lines():
@@ -63,3 +63,8 @@ class Dumpr(object):
                 continue
             writable.write(line + '\n')
         writable.write('\\.\n')
+        writable.write('''
+        CREATE SCHEMA IF NOT EXISTS "{schema}";
+        ALTER TABLE "{tablename}" SET SCHEMA "{schema}";'''.format(
+            tablename=tablename, schema=schema
+        ))
